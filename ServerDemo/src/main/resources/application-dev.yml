@@ -26,29 +26,29 @@ spring:
     cache: false
 
   #redis
-  redis:
-      cluster:
-        nodes: namenode22:6379,datanode23:6379,datanode24:6379
-        max-redirects: 6
-      timeout: 300000
-      jedis:
-        pool:
-          max-active: 8
-          max-wait: 100000
-          max-idle: 8
-          min-idle: 0
 #  redis:
-#    database: 0
-#    host: 127.0.0.1
-#    jedis:
-#      pool:
-#        max-active: 1024
-#        max-idle: 200
-#        max-wait: 10000
-#        min-idle: 0
-#    password:
-#    port: 6379
-#    timeout: 10000
+#      cluster:
+#        nodes: namenode22:6379,datanode23:6380,datanode24:6381
+#        max-redirects: 6
+#      timeout: 300000
+#      jedis:
+#        pool:
+#          max-active: 8
+#          max-wait: 100000
+#          max-idle: 8
+#          min-idle: 0
+  redis:
+    database: 0
+    host: 127.0.0.1
+    jedis:
+      pool:
+        max-active: 1024
+        max-idle: 200
+        max-wait: 10000
+        min-idle: 0
+    password:
+    port: 6379
+    timeout: 10000
 
 #mybatis
 mybatis:

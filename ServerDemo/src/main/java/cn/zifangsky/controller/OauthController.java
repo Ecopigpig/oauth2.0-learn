@@ -12,7 +12,11 @@ import cn.zifangsky.service.AuthorizationService;
 import cn.zifangsky.service.RedisService;
 import cn.zifangsky.service.UserService;
 import cn.zifangsky.utils.DateUtils;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -179,9 +183,12 @@ public class OauthController {
         if(StringUtils.isNoneBlank(status)){
             params = params + "&status=" + status;
         }
-
+        System.out.println("获取授权码的url："+redirectUri+params);
         return new ModelAndView("redirect:" + redirectUri + params);
     }
+
+    @Resource
+    RedisTemplate redisTemplate;
 
     /**
      * 通过Authorization Code获取Access Token
@@ -230,7 +237,11 @@ public class OauthController {
             //从Redis获取允许访问的用户权限范围
             String scope = redisService.get(code + ":scope");
             //从Redis获取对应的用户信息
-            User user = redisService.get(code + ":user");
+            // 从 redis 读取java实体
+            JSON json = (JSON) JSON.toJSON(redisTemplate.opsForValue().get(code + ":user"));
+            User user = new User();
+            Object javaObject = JSON.toJavaObject(json, User.class);
+            BeanUtils.copyProperties(javaObject, user);
 
             //如果能够通过Authorization Code获取到对应的用户信息，则说明该Authorization Code有效
             if(StringUtils.isNoneBlank(scope) && user != null){

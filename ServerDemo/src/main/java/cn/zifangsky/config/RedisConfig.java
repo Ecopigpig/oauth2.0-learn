@@ -1,117 +1,80 @@
 package cn.zifangsky.config;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.ParserConfig;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisClusterConfiguration;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-import redis.clients.jedis.JedisCluster;
-import redis.clients.jedis.JedisPoolConfig;
 
-import java.util.Arrays;
+import java.nio.charset.Charset;
 
 /**
- * Redis相关配置
- *
- * @author zifangsky
- * @date 2018/7/30
- * @since 1.0.0
- */
+ * @program: serverdemo
+ * @description: 自己的redisconfig
+ * @author: linxinting
+ * @create: 2020-07-10 10:57
+ **/
 @Configuration
-@ConditionalOnClass({JedisCluster.class})
 public class RedisConfig {
-
-    @Value("${spring.redis.timeout}")
-    private String timeOut;
-
-//    @Value("${spring.redis.cluster.nodes}")
-//    private String nodes;
-//
-//    @Value("${spring.redis.cluster.max-redirects}")
-//    private int maxRedirects;
-
-    @Value("${spring.redis.jedis.pool.max-active}")
-    private int maxActive;
-
-    @Value("${spring.redis.jedis.pool.max-wait}")
-    private int maxWait;
-
-    @Value("${spring.redis.jedis.pool.max-idle}")
-    private int maxIdle;
-
-    @Value("${spring.redis.jedis.pool.min-idle}")
-    private int minIdle;
-
-    @Bean
-    public JedisPoolConfig jedisPoolConfig(){
-        JedisPoolConfig config = new JedisPoolConfig();
-        config.setMaxTotal(maxActive);
-        config.setMaxIdle(maxIdle);
-        config.setMinIdle(minIdle);
-        config.setMaxWaitMillis(maxWait);
-
-        return config;
+    RedisConfig(){
+        //打开autotype功能,需要强转的类一次添加其后
+        ParserConfig.getGlobalInstance()
+                .addAccept("cn.zifangsky.model.");
     }
 
     @Bean
-    public RedisClusterConfiguration redisClusterConfiguration(){
-        return new RedisClusterConfiguration();
-    }
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory){
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(factory);
 
-    /**
-     * JedisConnectionFactory
-     */
-    @Bean
-    public JedisConnectionFactory jedisConnectionFactory(RedisClusterConfiguration configuration,JedisPoolConfig jedisPoolConfig){
-        return new JedisConnectionFactory(configuration,jedisPoolConfig);
-    }
-
-    /**
-     * 使用Jackson序列化对象
-     * @author zifangsky
-     * @date 2018/7/30 16:16
-     * @since 1.0.0
-     * @return org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer<java.lang.Object>
-     */
-    @Bean
-    public Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer(){
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<Object>(Object.class);
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        objectMapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
-        serializer.setObjectMapper(objectMapper);
-
-        return serializer;
-    }
-
-    /**
-     * RedisTemplate
-     */
-    @Bean
-    public RedisTemplate<String, Object> redisTemplate(JedisConnectionFactory factory, Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer){
-        RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
-        redisTemplate.setConnectionFactory(factory);
-
-        //字符串方式序列化KEY
         StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
-        redisTemplate.setKeySerializer(stringRedisSerializer);
-        redisTemplate.setHashKeySerializer(stringRedisSerializer);
+        //设置key采用String的序列化方式
+        template.setKeySerializer(stringRedisSerializer);
+        //设置hash的key也采用String的序列化方式
+        template.setHashKeySerializer(stringRedisSerializer);
 
-        //JSON方式序列化VALUE
-        redisTemplate.setValueSerializer(jackson2JsonRedisSerializer);
-        redisTemplate.setHashValueSerializer(jackson2JsonRedisSerializer);
-
-        redisTemplate.afterPropertiesSet();
-
-        return redisTemplate;
+        FastJson2JsonRedisSerializer fastJson2JsonRedisSerializer =new FastJson2JsonRedisSerializer<Object>(Object.class);
+        //设置value采用的fastjson的序列化方式
+        template.setValueSerializer(fastJson2JsonRedisSerializer);
+        //设置hash的value采用的fastjson的序列化方式
+        template.setHashValueSerializer(fastJson2JsonRedisSerializer);
+        //设置其他默认的序列化方式为fastjson
+        template.setDefaultSerializer(fastJson2JsonRedisSerializer);
+        template.afterPropertiesSet();
+        return template;
     }
 
+    public static class FastJson2JsonRedisSerializer<T> implements RedisSerializer<T> {
+        public static final Charset DEFAULT_CHARSET = Charset.forName("UTF-8");
+
+        private Class<T> clazz;
+
+        public FastJson2JsonRedisSerializer(Class<T> clazz) {
+            super();
+            this.clazz = clazz;
+        }
+
+        @Override
+        public byte[] serialize(T t) throws SerializationException {
+            if (t == null) {
+                return new byte[0];
+            }
+            return JSON.toJSONString(t, SerializerFeature.WriteClassName).getBytes(DEFAULT_CHARSET);
+        }
+
+        @Override
+        public T deserialize(byte[] bytes) throws SerializationException {
+            if (bytes == null || bytes.length <= 0) {
+                return null;
+            }
+            String str = new String(bytes, DEFAULT_CHARSET);
+            return JSON.parseObject(str, clazz);
+        }
+
+    }
 }
